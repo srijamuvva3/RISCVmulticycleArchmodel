@@ -11,7 +11,7 @@ add_executable(riscv_cpu
 
     src/cpu/cpu.cpp
     src/cpu/control_unit/control_unit.cpp
-    src/cpu/decoder/decoder.cpp
+    src/ISA/decoder.cpp
     src/cpu/alu/alu.cpp
     src/cpu/register_file/register_file.cpp
     src/cpu/register_file/pc.cpp

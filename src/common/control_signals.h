@@ -1,7 +1,7 @@
 #ifndef CONTROL_SIGNALS_H
 #define CONTROL_SIGNALS_H
 
-#include "../alu/alu.h"
+#include "../execution/alu/alu.h"
 
 enum class ALUSource
 {
