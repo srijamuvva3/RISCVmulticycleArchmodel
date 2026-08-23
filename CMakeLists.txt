@@ -22,8 +22,8 @@ add_executable(riscv_cpu
 
     src/execution/alu/alu.cpp
 
-    src/execution/registers/register_file.cpp
-    src/execution/registers/pc.cpp
+    src/execution/register_file/register_file.cpp
+    src/execution/register_file/pc.cpp
 
     src/execution/control_unit/control_unit.cpp
 
@@ -51,8 +51,8 @@ add_executable(riscv_multicycle
 
     src/execution/alu/alu.cpp
 
-    src/execution/registers/register_file.cpp
-    src/execution/registers/pc.cpp
+    src/execution/register_file/register_file.cpp
+    src/execution/register_file/pc.cpp
 
     src/execution/control_unit/control_unit.cpp
 
@@ -77,8 +77,8 @@ add_executable(test_multicycle
 
     src/execution/control_unit/control_unit.cpp
 
-    src/execution/registers/register_file.cpp
-    src/execution/registers/pc.cpp
+    src/execution/register_file/register_file.cpp
+    src/execution/register_file/pc.cpp
 
     src/memory/memory.cpp
 
