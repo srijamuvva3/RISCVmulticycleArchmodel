@@ -76,6 +76,19 @@ ControlSignals ControlUnit::generate(
                 case 0x2:
                     signals.alu_operation = ALUoperation::SLT;
                     break;
+                case 0x1:
+                    signals.alu_operation = ALUoperation::SLL;
+                    break;
+                case 0x5:
+                    if (instruction.funct7 == 0x00)
+                        signals.alu_operation = ALUoperation::SRL;
+                    else if (instruction.funct7 == 0x20)
+                        signals.alu_operation = ALUoperation::SRA;
+                    break;
+
+            default:
+                signals.alu_operation = ALUoperation::NONE;
+                break;
             }
 
             break;
@@ -117,6 +130,21 @@ ControlSignals ControlUnit::generate(
         case 0x67:  // JALR
         {
             signals.jump = true;
+            signals.reg_write = true;
+            signals.alu_source = ALUSource::IMMEDIATE;
+            signals.alu_operation = ALUoperation::ADD;
+            break;
+        }
+        case 0x37:  // LUI - Load Upper Immediate
+        {
+            signals.reg_write = true;
+            signals.alu_source = ALUSource::IMMEDIATE;
+            signals.alu_operation = ALUoperation::ADD;
+            break;
+        }
+
+        case 0x17:  // AUIPC - Add Upper Immediate to PC
+        {
             signals.reg_write = true;
             signals.alu_source = ALUSource::IMMEDIATE;
             signals.alu_operation = ALUoperation::ADD;

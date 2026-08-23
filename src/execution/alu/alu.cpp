@@ -21,11 +21,11 @@ uint32_t ALU::execute(uint32_t a, uint32_t b, ALUoperation operation) const{
         case ALUoperation::XOR:
             return a ^ b;
         case ALUoperation::SLL:
-            return a << b;
+            return a << (b & 0x1F); // RISC V is a 32-bit arch, so we mask the shift amount to 5 bits
         case ALUoperation::SRL:
-            return a >> b;
+            return a >> (b & 0x1F); // RISC V is a 32-bit arch, so we mask the shift amount to 5 bits
         case ALUoperation::SRA:
-            return static_cast<int32_t>(a) >> b;
+            return static_cast<uint32_t> (static_cast<int32_t>(a) >> (b & 0x1F));
         case ALUoperation::SLT:
             return (static_cast<int32_t>(a) < static_cast<int32_t>(b)) ? 1 : 0;
         default:

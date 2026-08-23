@@ -1,31 +1,38 @@
 #include "cpu.h"
 
-CPU::CPU(Memory& memory) : memory(memory){
+SingleCycleCPU::SingleCycleCPU(Memory& memory, Logger* logger) : memory(memory), logger(logger), cycle(0) {
     reset();
 }
 
-void CPU::reset(){
+void SingleCycleCPU::reset(){
     pc.reset();
     registers.reset();
+
+    cycle = 0;
 }
 
-uint32_t CPU::getPC() const{
+uint32_t SingleCycleCPU::getPC() const{
     return pc.get();
 }
 
-uint32_t CPU::getRegister(uint8_t index) const{
+uint32_t SingleCycleCPU::getRegister(uint8_t index) const{
     return registers.read(index);
 }
-void CPU::step()
+
+uint64_t SingleCycleCPU::getCycle() const {
+    return cycle;
+}
+
+void SingleCycleCPU::step()
 {
-    // FETCH
+    //// FETCH ////
     uint32_t current_pc = pc.get();
     uint32_t raw_instruction = memory.read32(current_pc);
 
-    // DECODE
+    //// DECODE ////
     Instruction instruction = decoder.decode(raw_instruction);
 
-    // GENERATE CONTROL SIGNALS
+    //GENERATE CONTROL SIGNALS
     ControlSignals signals = control_unit.generate(instruction);
 
     // Default PC = PC + 4
@@ -35,7 +42,7 @@ void CPU::step()
     uint32_t rs1_value = registers.read(instruction.rs1);
     uint32_t rs2_value = registers.read(instruction.rs2);
 
-    // EXECUTE
+    //// EXECUTE ////
     uint32_t alu_input_b;
     if (signals.alu_source == ALUSource::IMMEDIATE){
         alu_input_b = static_cast<uint32_t>(instruction.immediate);
@@ -50,7 +57,7 @@ void CPU::step()
         alu_result = alu.execute(rs1_value, alu_input_b, signals.alu_operation);
     }
 
-    // MEMORY ACCESS
+    //// MEMORY ACCESS ////
     uint32_t memory_data = 0;
 
     // LOAD
@@ -67,7 +74,7 @@ void CPU::step()
         );
     }
 
-    // WRITE BACK
+    //// WRITE BACK ////
     if (signals.reg_write){
         uint32_t write_data;
         if (signals.mem_to_reg){
@@ -82,10 +89,40 @@ void CPU::step()
     // BRANCH
     if (signals.branch) {
         // Currently implement BEQ
-        if (instruction.funct3 == 0x0) {
-            if (rs1_value == rs2_value) {
-                next_pc = current_pc + instruction.immediate;
-            }
+        switch(instruction.funct3) {
+            case 0x0: // BEQ
+                if (rs1_value == rs2_value) {
+                    next_pc = current_pc + instruction.immediate;
+                }
+                break;
+            case 0x1: // BNE
+                if (rs1_value != rs2_value) {
+                    next_pc = current_pc + instruction.immediate;
+                }
+                break;
+            case 0x4: // BLT
+                if (static_cast<int32_t>(rs1_value) < static_cast<int32_t>(rs2_value)) {
+                    next_pc = current_pc + instruction.immediate;
+                }
+                break;
+            case 0x5: // BGE
+                if (static_cast<int32_t>(rs1_value) >= static_cast<int32_t>(rs2_value)) {
+                    next_pc = current_pc + instruction.immediate;
+                }
+                break;
+            case 0x6: // BLTU
+                if (rs1_value < rs2_value) {
+                    next_pc = current_pc + instruction.immediate;
+                }
+                break; 
+            case 0x7: // BGEU
+                if (rs1_value >= rs2_value) {
+                    next_pc = current_pc + instruction.immediate;
+                }
+                break;
+            default:
+                // Unsupported branch type
+                break;
         }
     }
 
@@ -106,4 +143,30 @@ void CPU::step()
 
     // Update PC
     pc.set(next_pc);
+
+
+    //// TRACE LOGGING ////
+    if (logger!=nullptr){
+        TraceEntry entry;
+        entry.cycle = cycle;
+        entry.pc = current_pc;
+        entry.instruction = raw_instruction;
+        entry.stage = "SingleCycle";
+        entry.alu_result = alu_result;
+        entry.reg_write = signals.reg_write;
+        entry.rd = instruction.rd;
+        entry.write_data = signals.reg_write ? (signals.mem_to_reg ? memory_data : alu_result) : 0;
+        entry.mem_read = signals.mem_read;
+        entry.mem_write = signals.mem_write;
+        entry.mem_address = signals.mem_read || signals.mem_write ? alu_result : 0;
+        entry.mem_data = signals.mem_read ? memory_data : (signals.mem_write ? rs2_value : 0);
+        entry.next_pc = next_pc;
+
+        logger->log(entry);
+    }
+
+    // Increment cycle count
+    cycle++;
+
+
 }
