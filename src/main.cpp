@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cstdint>
 
-#include "cpu/cpu.h"
+#include "multicycle/cpu.h"
 #include "memory/memory.h"
 
 int main()
@@ -10,7 +10,7 @@ int main()
     Memory memory;
 
     // Create CPU connected to that memory
-    CPU cpu(memory);
+    MultiCycleCPU cpu(memory);
 
     // Reset CPU
     cpu.reset();

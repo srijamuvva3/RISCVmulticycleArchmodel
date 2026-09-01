@@ -57,11 +57,11 @@ ControlSignals ControlUnit::generate(
 
             switch (instruction.funct3)
             {
-                case 0x0:
+                case 0x0: //ADDI 
                     signals.alu_operation = ALUoperation::ADD;
                     break;
 
-                case 0x7:
+                case 0x7: //ANDI
                     signals.alu_operation = ALUoperation::AND;
                     break;
 
@@ -69,17 +69,17 @@ ControlSignals ControlUnit::generate(
                     signals.alu_operation = ALUoperation::OR;
                     break;
 
-                case 0x4:
+                case 0x4: //XORI
                     signals.alu_operation = ALUoperation::XOR;
                     break;
 
-                case 0x2:
+                case 0x2: //SLTI
                     signals.alu_operation = ALUoperation::SLT;
                     break;
-                case 0x1:
+                case 0x1: //SLLI
                     signals.alu_operation = ALUoperation::SLL;
                     break;
-                case 0x5:
+                case 0x5: //SRLI/SRAI
                     if (instruction.funct7 == 0x00)
                         signals.alu_operation = ALUoperation::SRL;
                     else if (instruction.funct7 == 0x20)

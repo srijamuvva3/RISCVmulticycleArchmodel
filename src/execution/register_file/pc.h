@@ -3,14 +3,21 @@
 
 #include <cstdint>
 
-class PC{
-    private:
-        uint32_t value;
-    public:
-        PC();
-        uint32_t get() const;
-        void set(uint32_t new_value);
-        void reset();
+class PC
+{
+public:
+
+    PC();
+
+    void reset();
+
+    uint32_t get() const;
+
+    void set(uint32_t value);
+
+private:
+
+    uint32_t value;
 };
 
 #endif

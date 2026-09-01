@@ -3,13 +3,17 @@
 
 #include "../../src/multicycle/cpu.h"
 #include "../../src/memory/memory.h"
+#include "../../src/trace/logger.h"
 
 
 int main()
 {
+    // Use default constructor for Memory (adjusted to match available constructors)
     Memory memory;
 
-    MultiCycleCPU cpu(memory);
+    Logger logger("multicycle_trace.log");
+
+    MultiCycleCPU cpu(memory, &logger);
 
     cpu.reset();
 
@@ -25,7 +29,19 @@ int main()
     memory.write32(0x00, 0x00A00093);
     memory.write32(0x04, 0x01400113);
     memory.write32(0x08, 0x002081B3);
+    std::cout << std::hex;
 
+    std::cout << "MEM[0x00] = 0x"
+          << memory.read32(0x00)
+          << std::endl;
+
+    std::cout << "MEM[0x04] = 0x"
+          << memory.read32(0x04)
+          << std::endl;
+
+    std::cout << "MEM[0x08] = 0x"
+          << memory.read32(0x08)
+          << std::endl;
 
     // ------------------------------------------------
     // Run enough cycles

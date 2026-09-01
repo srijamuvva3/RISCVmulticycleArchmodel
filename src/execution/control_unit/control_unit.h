@@ -7,7 +7,10 @@
 class ControlUnit
 {
 public:
-    ControlSignals generate(const Instruction& instruction) const;
+
+    ControlSignals generate(
+        const Instruction& instruction
+    ) const;
 };
 
 #endif

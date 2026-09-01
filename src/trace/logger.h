@@ -1,22 +1,30 @@
-#ifndef LoGGER_H
+#ifndef LOGGER_H
 #define LOGGER_H
 
 #include "trace.h"
+
 #include <fstream>
 #include <string>
 
-class Logger {
-    private:
-        std::ofstream log_file;
-        
+class Logger
+{
 public:
-    Logger()=default; //creates a logger object w/o opening a file
-    explicit Logger(const std::string& filename); //
+
+    explicit Logger(const std::string& filename);
+
     ~Logger();
-    void open(const std::string& filename);
-    void close();
+
     void log(const TraceEntry& entry);
-    void logHeader();
+
+    void close();
+
+private:
+
+    std::ofstream file;
+
+    void writeHeader();
+
+    void writeHex32(uint32_t value);
 };
 
-#endif // LOGGER_H
+#endif

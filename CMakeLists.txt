@@ -1,87 +1,51 @@
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.20)
 
-project(riscv_cpu)
+project(RISCVProcessor)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Common include directory
-include_directories(
+# ============================================================
+# Common source files
+# ============================================================
+
+set(COMMON_SOURCES
+    src/common/instruction.h
+
+    src/ISA/decoder.cpp
+
+    src/execution/alu/alu.cpp
+    src/execution/control_unit/control_unit.cpp
+    src/execution/register_file/register_file.cpp
+    src/execution/register_file/pc.cpp
+
+    src/memory/memory.cpp
+
+    src/trace/trace.cpp
+    src/trace/logger.cpp
+)
+
+# ============================================================
+# Pipeline CPU
+# ============================================================
+
+add_executable(riscv_pipeline
+
+    tests/pipeline/test_pipeline.cpp
+
+    src/pipelineCpu/pipeline_cpu.cpp
+    src/pipelineCpu/pipeline_registers.cpp
+    src/pipelineCpu/hazard_unit.cpp
+    src/pipelineCPU/pipeline_trace.cpp
+
+    ${COMMON_SOURCES}
+)
+
+# ============================================================
+# IMPORTANT:
+# src is an include directory
+# ============================================================
+
+target_include_directories(riscv_pipeline PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
-)
-
-# ============================================================
-# Single-cycle CPU
-# ============================================================
-
-add_executable(riscv_cpu
-
-    src/main.cpp
-
-    src/isa/decoder.cpp
-
-    src/execution/alu/alu.cpp
-
-    src/execution/register_file/register_file.cpp
-    src/execution/register_file/pc.cpp
-
-    src/execution/control_unit/control_unit.cpp
-
-    src/memory/memory.cpp
-
-    src/trace/trace.cpp
-    src/trace/logger.cpp
-
-    src/single_cycle/cpu.cpp
-)
-
-
-# ============================================================
-# Multi-cycle CPU
-# ============================================================
-
-add_executable(riscv_multicycle
-    src/main.cpp
-
-    src/common/...
-
-    src/memory/memory.cpp
-
-    src/isa/decoder.cpp
-
-    src/execution/alu/alu.cpp
-
-    src/execution/register_file/register_file.cpp
-    src/execution/register_file/pc.cpp
-
-    src/execution/control_unit/control_unit.cpp
-
-    src/memory/memory.cpp
-
-    src/trace/trace.cpp
-    src/trace/logger.cpp
-
-    src/multicycle/cpu.cpp
-    src/multicycle/control_fsm.cpp
-)
-add_executable(test_multicycle
-
-    tests/multicycle/test_multicycle.cpp
-
-    src/multicycle/cpu.cpp
-    src/multicycle/control_fsm.cpp
-
-    src/isa/decoder.cpp
-
-    src/execution/alu/alu.cpp
-
-    src/execution/control_unit/control_unit.cpp
-
-    src/execution/register_file/register_file.cpp
-    src/execution/register_file/pc.cpp
-
-    src/memory/memory.cpp
-
-    src/trace/trace.cpp
-    src/trace/logger.cpp
 )

@@ -1,7 +1,7 @@
 #ifndef CONTROL_SIGNALS_H
 #define CONTROL_SIGNALS_H
 
-#include "../execution/alu/alu.h"
+#include <cstdint>
 
 enum class ALUSource
 {
@@ -9,12 +9,25 @@ enum class ALUSource
     IMMEDIATE
 };
 
+enum class ALUoperation
+{
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    AND,
+    OR,
+    XOR,
+    SLT,
+    SLL,
+    SRL,
+    SRA,
+    NONE
+};
+
 struct ControlSignals
 {
     bool reg_write = false;
-
-    ALUSource alu_source = ALUSource::REGISTER;
-    ALUoperation alu_operation = ALUoperation::NONE;
 
     bool mem_read = false;
     bool mem_write = false;
@@ -23,6 +36,10 @@ struct ControlSignals
 
     bool branch = false;
     bool jump = false;
+
+    ALUSource alu_source = ALUSource::REGISTER;
+
+    ALUoperation alu_operation = ALUoperation::NONE;
 };
 
 #endif

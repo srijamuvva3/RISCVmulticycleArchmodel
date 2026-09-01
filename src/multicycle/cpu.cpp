@@ -1,4 +1,7 @@
 #include "cpu.h"
+#include "../trace/logger.h"
+#include <iomanip>
+#include <sstream>
 
 MultiCycleCPU::MultiCycleCPU(Memory& memory, Logger* logger)
     : memory(memory), logger(logger), cycle(0), current_pc(0), current_state(MultiCycleState::FETCH), IR(0), MDR(0), A(0), B(0), ALUOut(0)
@@ -60,11 +63,27 @@ void MultiCycleCPU::handleWritebackR(){
     registers.write(current_instruction.rd,ALUOut);
     current_state = MultiCycleState::FETCH;
 }
-void MultiCycleCPU::handleExecuteI(){
+void MultiCycleCPU::handleExecuteI()
+{
     ControlSignals signals = control_unit.generate(current_instruction);
-    uint32_t immediate = static_cast<uint32_t>(current_instruction.immediate);
 
-    ALUOut = alu.execute(A, immediate, signals.alu_operation);
+    uint32_t immediate =
+        static_cast<uint32_t>(current_instruction.immediate);
+
+    uint32_t alu_input_b = immediate;
+
+    // SLLI, SRLI, SRAI use shamt = imm[4:0]
+    if (current_instruction.funct3 == 0x1 ||
+        current_instruction.funct3 == 0x5)
+    {
+        alu_input_b = immediate & 0x1F;
+    }
+
+    ALUOut = alu.execute(
+        A,
+        alu_input_b,
+        signals.alu_operation
+    );
 
     current_state = MultiCycleState::WRITE_BACK_I;
 }
@@ -166,143 +185,465 @@ void MultiCycleCPU::handleAUIPC(){
     current_state = MultiCycleState::FETCH;
 }
 //trace handler
-void MultiCycleCPU::logTrace(){
-
-    if (logger == nullptr){
+void MultiCycleCPU::logTrace(MultiCycleState state,
+    uint32_t trace_pc,
+    uint32_t trace_instruction)
+{
+    if (logger == nullptr)
         return;
+
+    TraceEntry entry{};
+
+    entry.cycle = cycle;
+    entry.pc = trace_pc;
+    entry.instruction = trace_instruction;
+    entry.immediate = current_instruction.immediate;
+
+    // Register information
+    if (current_state == MultiCycleState::DECODE ||
+    current_state == MultiCycleState::EXECUTE_R ||
+    current_state == MultiCycleState::EXECUTE_I)
+    {
+    entry.rs1 = current_instruction.rs1;
+    entry.rs1_value = A;
     }
 
-    TraceEntry entry;
-    entry.cycle = cycle;
-    entry.pc = current_pc;
-    entry.instruction = IR;
-    entry.alu_result = ALUOut;
-    entry.next_pc = pc.get();
+    if (current_state == MultiCycleState::DECODE ||
+    current_state == MultiCycleState::EXECUTE_R)
+    {
+    entry.rs2 = current_instruction.rs2;
+    entry.rs2_value = B;
+    }
 
-    // Determine the stage represented by this cycle
-    switch (current_state){
+    entry.alu_result = ALUOut;
+
+    switch (state)
+    {
+        // -------------------------------------------------
+        // FETCH
+        // -------------------------------------------------
+
         case MultiCycleState::FETCH:
+
             entry.stage = "FETCH";
+
+            entry.activity =
+                "IR <- MEM[0x";
+
+            {
+                std::ostringstream ss;
+
+                ss << std::hex
+                   << std::setw(8)
+                   << std::setfill('0')
+                   << current_pc;
+
+                entry.activity += ss.str();
+            }
+
+            entry.activity += "]";
+
             break;
+
+
+        // -------------------------------------------------
+        // DECODE
+        // -------------------------------------------------
 
         case MultiCycleState::DECODE:
+
             entry.stage = "DECODE";
+
+            entry.rs1 = current_instruction.rs1;
+            entry.rs2 = current_instruction.rs2;
+
+            entry.rs1_value = A;
+            entry.rs2_value = B;
+
+            entry.activity =
+                "Decode | A <- x" +
+                std::to_string(current_instruction.rs1) +
+                ", B <- x" +
+                std::to_string(current_instruction.rs2);
+
             break;
+
+
+        // -------------------------------------------------
+        // EXECUTE R
+        // -------------------------------------------------
 
         case MultiCycleState::EXECUTE_R:
-        case MultiCycleState::EXECUTE_I:
-        case MultiCycleState::EXECUTE_ADDRESS:
-            entry.stage = "EXECUTE";
+
+            entry.stage = "EXECUTE_R";
+
+            entry.activity =
+                "ALU execute R-type";
+
             break;
+
+
+        // -------------------------------------------------
+        // EXECUTE I
+        // -------------------------------------------------
+
+        case MultiCycleState::EXECUTE_I:
+
+            entry.stage = "EXECUTE_I";
+
+            entry.activity =
+                "ALU execute I-type | imm = " +
+                std::to_string(current_instruction.immediate);
+
+            break;
+
+
+        // -------------------------------------------------
+        // ADDRESS CALCULATION
+        // -------------------------------------------------
+
+        case MultiCycleState::EXECUTE_ADDRESS:
+
+            entry.stage = "EXECUTE_ADDR";
+
+            entry.activity =
+                "ALU: base + immediate";
+
+            break;
+
+
+        // -------------------------------------------------
+        // MEMORY READ
+        // -------------------------------------------------
 
         case MultiCycleState::MEMORY_READ:
-        case MultiCycleState::MEMORY_WRITE:
-            entry.stage = "MEMORY";
+
+            entry.stage = "MEM_READ";
+
+            entry.mem_read = true;
+            entry.mem_address = ALUOut;
+            entry.mem_data = MDR;
+
+            entry.activity =
+                "MDR <- MEM[0x";
+
+            {
+                std::ostringstream ss;
+
+                ss << std::hex
+                   << std::setw(8)
+                   << std::setfill('0')
+                   << ALUOut;
+
+                entry.activity += ss.str();
+            }
+
+            entry.activity += "]";
+
             break;
+
+
+        // -------------------------------------------------
+        // MEMORY WRITE
+        // -------------------------------------------------
+
+        case MultiCycleState::MEMORY_WRITE:
+
+            entry.stage = "MEM_WRITE";
+
+            entry.mem_write = true;
+            entry.mem_address = ALUOut;
+            entry.mem_data = B;
+
+            entry.activity =
+                "MEM[0x";
+
+            {
+                std::ostringstream ss;
+
+                ss << std::hex
+                   << std::setw(8)
+                   << std::setfill('0')
+                   << ALUOut;
+
+                entry.activity += ss.str();
+            }
+
+            entry.activity += "] <- B";
+
+            break;
+
+
+        // -------------------------------------------------
+        // WRITE BACK R
+        // -------------------------------------------------
 
         case MultiCycleState::WRITE_BACK_R:
-        case MultiCycleState::WRITE_BACK_I:
-        case MultiCycleState::WRITE_BACK_LOAD:
-            entry.stage = "WRITEBACK";
+
+            entry.stage = "WRITE_BACK_R";
+
+            entry.reg_write = true;
+            entry.rd = current_instruction.rd;
+            entry.reg_write_value = ALUOut;
+
+            entry.activity =
+                "REG[x" +
+                std::to_string(current_instruction.rd) +
+                "] <- ALUOut";
+
             break;
+
+
+        // -------------------------------------------------
+        // WRITE BACK I
+        // -------------------------------------------------
+
+        case MultiCycleState::WRITE_BACK_I:
+
+            entry.stage = "WRITE_BACK_I";
+
+            entry.reg_write = true;
+            entry.rd = current_instruction.rd;
+            entry.reg_write_value = ALUOut;
+
+            entry.activity =
+                "REG[x" +
+                std::to_string(current_instruction.rd) +
+                "] <- ALUOut";
+
+            break;
+
+
+        // -------------------------------------------------
+        // WRITE BACK LOAD
+        // -------------------------------------------------
+
+        case MultiCycleState::WRITE_BACK_LOAD:
+
+            entry.stage = "WRITE_BACK_LD";
+
+            entry.reg_write = true;
+            entry.rd = current_instruction.rd;
+            entry.reg_write_value = MDR;
+
+            entry.activity =
+                "REG[x" +
+                std::to_string(current_instruction.rd) +
+                "] <- MDR";
+
+            break;
+
+
+        // -------------------------------------------------
+        // BRANCH
+        // -------------------------------------------------
 
         case MultiCycleState::BRANCH:
+
             entry.stage = "BRANCH";
+
+            entry.activity =
+                "Compare registers | PC <- branch target if taken";
+
             break;
+
+
+        // -------------------------------------------------
+        // JAL
+        // -------------------------------------------------
 
         case MultiCycleState::JUMP:
-        case MultiCycleState::JALR:
-            entry.stage = "JUMP";
+
+            entry.stage = "JAL";
+
+            entry.reg_write = true;
+            entry.rd = current_instruction.rd;
+            entry.reg_write_value = current_pc + 4;
+
+            entry.activity =
+                "REG[x" +
+                std::to_string(current_instruction.rd) +
+                "] <- PC+4 | PC <- PC+imm";
+
             break;
+
+
+        // -------------------------------------------------
+        // JALR
+        // -------------------------------------------------
+
+        case MultiCycleState::JALR:
+
+            entry.stage = "JALR";
+
+            entry.reg_write = true;
+            entry.rd = current_instruction.rd;
+            entry.reg_write_value = current_pc + 4;
+
+            entry.activity =
+                "REG[x" +
+                std::to_string(current_instruction.rd) +
+                "] <- PC+4 | PC <- rs1+imm";
+
+            break;
+
+
+        // -------------------------------------------------
+        // LUI
+        // -------------------------------------------------
 
         case MultiCycleState::LUI:
-        case MultiCycleState::AUIPC:
-            entry.stage = "WRITEBACK";
+
+            entry.stage = "LUI";
+
+            entry.reg_write = true;
+            entry.rd = current_instruction.rd;
+            entry.reg_write_value =
+                static_cast<uint32_t>(
+                    current_instruction.immediate
+                );
+
+            entry.activity =
+                "REG[x" +
+                std::to_string(current_instruction.rd) +
+                "] <- imm";
+
             break;
 
+
+        // -------------------------------------------------
+        // AUIPC
+        // -------------------------------------------------
+
+        case MultiCycleState::AUIPC:
+
+            entry.stage = "AUIPC";
+
+            entry.reg_write = true;
+            entry.rd = current_instruction.rd;
+
+            entry.reg_write_value =
+                current_pc +
+                static_cast<uint32_t>(
+                    current_instruction.immediate
+                );
+
+            entry.activity =
+                "REG[x" +
+                std::to_string(current_instruction.rd) +
+                "] <- PC+imm";
+
+            break;
+
+
         default:
-            entry.stage = "OTHER";
+
+            entry.stage = "HALT";
+            entry.activity = "No operation";
+
             break;
     }
 
     logger->log(entry);
 }
 
-void MultiCycleCPU::step() {
+void MultiCycleCPU::step()
+{
+    if (current_state == MultiCycleState::HALT)
+        return;
 
-    switch(current_state) {
-    // FETCH //
-        case (MultiCycleState::FETCH): {
+    MultiCycleState state_before = current_state;
+
+    // --------------------------------------------------
+    // Capture values belonging to this cycle
+    // --------------------------------------------------
+
+    uint32_t trace_pc = current_pc;
+    uint32_t trace_instruction = IR;
+
+    // FETCH is special:
+    // current_pc/IR haven't been updated yet.
+    if (state_before == MultiCycleState::FETCH)
+    {
+        trace_pc = pc.get();
+        trace_instruction = memory.read32(trace_pc);
+    }
+
+    switch (current_state)
+    {
+        case MultiCycleState::FETCH:
             handleFetch();
             break;
-        }
-    //DECODE//
-        case(MultiCycleState::DECODE): {
+
+        case MultiCycleState::DECODE:
             handleDecode();
             break;
-        }
-    //EXECUTE R-TYPE//
-        case(MultiCycleState::EXECUTE_R): {
+
+        case MultiCycleState::EXECUTE_R:
             handleExecuteR();
             break;
-        }
-    //Write Back R-TYPE//
-        case(MultiCycleState::WRITE_BACK_R): {
+
+        case MultiCycleState::WRITE_BACK_R:
             handleWritebackR();
             break;
-        }
-    //EXECUTE I Type //
-        case(MultiCycleState::EXECUTE_I): {
+
+        case MultiCycleState::EXECUTE_I:
             handleExecuteI();
             break;
-        }
-    //Write Back I Type //
-        case(MultiCycleState::WRITE_BACK_I):{
+
+        case MultiCycleState::WRITE_BACK_I:
             handleWritebackI();
             break;
-        }
-    //Execute Address //
-        case(MultiCycleState::EXECUTE_ADDRESS): {
+
+        case MultiCycleState::EXECUTE_ADDRESS:
             handleAddressCalculation();
             break;
-        }
-        case(MultiCycleState::MEMORY_READ):{
+
+        case MultiCycleState::MEMORY_READ:
             handleMemoryRead();
             break;
-        }
-        case(MultiCycleState::MEMORY_WRITE):{
+
+        case MultiCycleState::MEMORY_WRITE:
             handleMemoryWrite();
             break;
-        }
-        case(MultiCycleState::WRITE_BACK_LOAD):{
+
+        case MultiCycleState::WRITE_BACK_LOAD:
             handleWritebackLoad();
             break;
-        }
-        case(MultiCycleState::BRANCH):{
+
+        case MultiCycleState::BRANCH:
             handleBranch();
             break;
-        }
-        case(MultiCycleState::JUMP):{
+
+        case MultiCycleState::JUMP:
             handleJUMP();
             break;
-        }
-        case(MultiCycleState::JALR):{
+
+        case MultiCycleState::JALR:
             handleJALR();
             break;
-        }
-        case(MultiCycleState::LUI):{
+
+        case MultiCycleState::LUI:
             handleLUI();
             break;
-        }
-        case(MultiCycleState::AUIPC):{
+
+        case MultiCycleState::AUIPC:
             handleAUIPC();
             break;
-        }
-        case(MultiCycleState::HALT):{
-            return;
-        }
 
-        logTrace();
-        cycle++;
+        case MultiCycleState::HALT:
+            return;
     }
+
+    // --------------------------------------------------
+    // Override the trace values with captured values
+    // --------------------------------------------------
+
+    logTrace(
+    state_before,
+    trace_pc,
+    trace_instruction
+);
+
+    cycle++;
 }
