@@ -22,10 +22,11 @@ public:
         uint32_t pc,
         uint32_t instruction,
 
-        const std::string& if_id_state,
-        const std::string& id_ex_state,
-        const std::string& ex_mem_state,
-        const std::string& mem_wb_state,
+        const std::string& if_stage,
+        const std::string& id_stage,
+        const std::string& ex_stage,
+        const std::string& mem_stage,
+        const std::string& wb_stage,
 
         uint32_t rs1,
         uint32_t rs1_value,

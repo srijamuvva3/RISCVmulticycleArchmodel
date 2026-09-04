@@ -1,9 +1,9 @@
 #include <iostream>
 #include <cassert>
 
-#include "../src/pipelineCPU/pipeline_cpu.h"
-#include "../src/memory/memory.h"
-#include "../src/pipelineCPU/pipeline_trace.h"
+#include "src/pipelineCPU/pipeline_cpu.h"
+#include "src/memory/memory.h"
+#include "src/trace/logger.h"
 
 
 int main()
@@ -95,7 +95,7 @@ PipelineCPU cpu(
     std::cout
         << "PIPELINE ARITHMETIC TEST PASSED"
         << std::endl;
-
+    pipeline_trace.close();
 
     return 0;
 }

@@ -9,7 +9,8 @@
 // ============================================================
 
 PipelineCPU::PipelineCPU(
-    Memory& memory
+    Memory& memory,
+    PipelineTrace* pipeline_trace
 )
     : memory(memory),
       pipeline_trace(pipeline_trace),
@@ -816,7 +817,7 @@ void PipelineCPU::step()
     if_id =
         next_if_id;
 
-
+    logPipelineCycle();
     // ========================================================
     // 11. HALT WHEN PIPELINE DRAINS
     // ========================================================
@@ -842,30 +843,382 @@ void PipelineCPU::step()
 
     cycle++;
 }
+
+static std::string instructionToString(
+    const Instruction& instruction
+)
+{
+    std::ostringstream ss;
+
+    switch (instruction.opcode)
+    {
+        // ----------------------------------------------------
+        // OP-IMM
+        // ----------------------------------------------------
+
+        case 0x13:
+        {
+            if (instruction.funct3 == 0x0)
+            {
+                ss
+                    << "ADDI x"
+                    << instruction.rd
+                    << ",x"
+                    << instruction.rs1
+                    << ","
+                    << instruction.immediate;
+            }
+            else
+            {
+                ss << "OP-IMM";
+            }
+
+            break;
+        }
+
+
+        // ----------------------------------------------------
+        // OP
+        // ----------------------------------------------------
+
+        case 0x33:
+        {
+            if (
+                instruction.funct3 == 0x0 &&
+                instruction.funct7 == 0x00
+            )
+            {
+                ss
+                    << "ADD x"
+                    << instruction.rd
+                    << ",x"
+                    << instruction.rs1
+                    << ",x"
+                    << instruction.rs2;
+            }
+            else if (
+                instruction.funct3 == 0x0 &&
+                instruction.funct7 == 0x20
+            )
+            {
+                ss
+                    << "SUB x"
+                    << instruction.rd
+                    << ",x"
+                    << instruction.rs1
+                    << ",x"
+                    << instruction.rs2;
+            }
+            else if (
+                instruction.funct3 == 0x7
+            )
+            {
+                ss
+                    << "AND x"
+                    << instruction.rd
+                    << ",x"
+                    << instruction.rs1
+                    << ",x"
+                    << instruction.rs2;
+            }
+            else if (
+                instruction.funct3 == 0x6
+            )
+            {
+                ss
+                    << "OR x"
+                    << instruction.rd
+                    << ",x"
+                    << instruction.rs1
+                    << ",x"
+                    << instruction.rs2;
+            }
+            else if (
+                instruction.funct3 == 0x4
+            )
+            {
+                ss
+                    << "XOR x"
+                    << instruction.rd
+                    << ",x"
+                    << instruction.rs1
+                    << ",x"
+                    << instruction.rs2;
+            }
+            else
+            {
+                ss << "OP";
+            }
+
+            break;
+        }
+
+
+        // ----------------------------------------------------
+        // LOAD
+        // ----------------------------------------------------
+
+        case 0x03:
+        {
+            if (instruction.funct3 == 0x2)
+            {
+                ss
+                    << "LW x"
+                    << instruction.rd
+                    << ","
+                    << instruction.immediate
+                    << "(x"
+                    << instruction.rs1
+                    << ")";
+            }
+            else
+            {
+                ss << "LOAD";
+            }
+
+            break;
+        }
+
+
+        // ----------------------------------------------------
+        // STORE
+        // ----------------------------------------------------
+
+        case 0x23:
+        {
+            if (instruction.funct3 == 0x2)
+            {
+                ss
+                    << "SW x"
+                    << instruction.rs2
+                    << ","
+                    << instruction.immediate
+                    << "(x"
+                    << instruction.rs1
+                    << ")";
+            }
+            else
+            {
+                ss << "STORE";
+            }
+
+            break;
+        }
+
+
+        // ----------------------------------------------------
+        // BRANCH
+        // ----------------------------------------------------
+
+        case 0x63:
+        {
+            switch (instruction.funct3)
+            {
+                case 0x0:
+                    ss << "BEQ";
+                    break;
+
+                case 0x1:
+                    ss << "BNE";
+                    break;
+
+                case 0x4:
+                    ss << "BLT";
+                    break;
+
+                case 0x5:
+                    ss << "BGE";
+                    break;
+
+                case 0x6:
+                    ss << "BLTU";
+                    break;
+
+                case 0x7:
+                    ss << "BGEU";
+                    break;
+
+                default:
+                    ss << "BRANCH";
+                    break;
+            }
+
+            break;
+        }
+
+
+        // ----------------------------------------------------
+        // JAL
+        // ----------------------------------------------------
+
+        case 0x6F:
+            ss
+                << "JAL x"
+                << instruction.rd
+                << ","
+                << instruction.immediate;
+            break;
+
+
+        // ----------------------------------------------------
+        // JALR
+        // ----------------------------------------------------
+
+        case 0x67:
+            ss
+                << "JALR x"
+                << instruction.rd
+                << ","
+                << instruction.immediate
+                << "(x"
+                << instruction.rs1
+                << ")";
+            break;
+
+
+        // ----------------------------------------------------
+        // LUI
+        // ----------------------------------------------------
+
+        case 0x37:
+            ss
+                << "LUI x"
+                << instruction.rd
+                << ","
+                << instruction.immediate;
+            break;
+
+
+        // ----------------------------------------------------
+        // AUIPC
+        // ----------------------------------------------------
+
+        case 0x17:
+            ss
+                << "AUIPC x"
+                << instruction.rd
+                << ","
+                << instruction.immediate;
+            break;
+
+
+        // ----------------------------------------------------
+        // UNKNOWN
+        // ----------------------------------------------------
+
+        default:
+            ss << "UNKNOWN";
+            break;
+    }
+
+    return ss.str();
+}
+
 void PipelineCPU::logPipelineCycle()
 {
     if (pipeline_trace == nullptr)
         return;
 
-    std::string if_id_state = "-";
-    std::string id_ex_state = "-";
-    std::string ex_mem_state = "-";
-    std::string mem_wb_state = "-";
+
+    // ========================================================
+    // Pipeline stage descriptions
+    // ========================================================
+
+    std::string if_stage = "-";
+    std::string id_stage = "-";
+    std::string ex_stage = "-";
+    std::string mem_stage = "-";
+    std::string wb_stage = "-";
+
+
+    // ========================================================
+    // IF
+    //
+    // IF/ID contains the instruction that has just been
+    // fetched and is waiting for Decode.
+    // ========================================================
 
     if (if_id.valid)
-        if_id_state = "VALID";
+    {
+        Instruction instruction =
+            decoder.decode(if_id.instruction);
+
+        if_stage =
+            instructionToString(instruction);
+    }
+
+
+    // ========================================================
+    // ID
+    //
+    // ID/EX contains the instruction that has completed
+    // Decode and is entering Execute.
+    // ========================================================
 
     if (id_ex.valid)
-        id_ex_state = "VALID";
+    {
+        id_stage =
+            instructionToString(id_ex.instruction);
+    }
+
+
+    // ========================================================
+    // EX
+    //
+    // EX/MEM contains the instruction that has completed
+    // Execute.
+    // ========================================================
 
     if (ex_mem.valid)
-        ex_mem_state = "VALID";
+    {
+        ex_stage =
+            instructionToString(ex_mem.instruction);
+    }
+
+
+    // ========================================================
+    // MEM
+    //
+    // MEM/WB contains the instruction that has completed
+    // Memory access.
+    // ========================================================
 
     if (mem_wb.valid)
-        mem_wb_state = "VALID";
+    {
+        mem_stage =
+            instructionToString(mem_wb.instruction);
+    }
 
 
-    uint32_t instruction = 0;
+    // ========================================================
+    // WB
+    //
+    // The instruction currently being written back is the
+    // instruction in MEM/WB.
+    //
+    // For this simple trace, we display the same instruction
+    // in WB when it performs register writeback.
+    // ========================================================
+
+    if (
+        mem_wb.valid &&
+        mem_wb.control.reg_write
+    )
+    {
+        wb_stage =
+            instructionToString(mem_wb.instruction);
+    }
+
+
+    // ========================================================
+    // Detailed information
+    //
+    // Prefer ID/EX because it contains decoded operands and
+    // immediate information.
+    // ========================================================
+
+    uint32_t instruction_raw = 0;
+
     uint32_t trace_pc = pc.get();
 
     uint32_t rs1 = 0;
@@ -879,14 +1232,9 @@ void PipelineCPU::logPipelineCycle()
     uint32_t alu_result = 0;
 
 
-    // --------------------------------------------------------
-    // Prefer the instruction currently in ID/EX
-    // because this gives us decoded operands/immediate.
-    // --------------------------------------------------------
-
     if (id_ex.valid)
     {
-        instruction =
+        instruction_raw =
             id_ex.instruction.raw;
 
         trace_pc =
@@ -909,7 +1257,7 @@ void PipelineCPU::logPipelineCycle()
     }
     else if (if_id.valid)
     {
-        instruction =
+        instruction_raw =
             if_id.instruction;
 
         trace_pc =
@@ -917,31 +1265,25 @@ void PipelineCPU::logPipelineCycle()
     }
     else if (ex_mem.valid)
     {
-        instruction =
+        instruction_raw =
             ex_mem.instruction.raw;
 
         trace_pc =
             ex_mem.pc;
-
-        alu_result =
-            ex_mem.alu_result;
     }
     else if (mem_wb.valid)
     {
-        instruction =
+        instruction_raw =
             mem_wb.instruction.raw;
 
         trace_pc =
             mem_wb.pc;
-
-        alu_result =
-            mem_wb.alu_result;
     }
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // ALU result
-    // --------------------------------------------------------
+    // ========================================================
 
     if (ex_mem.valid)
     {
@@ -950,11 +1292,12 @@ void PipelineCPU::logPipelineCycle()
     }
 
 
-    // --------------------------------------------------------
+    // ========================================================
     // Activity
-    // --------------------------------------------------------
+    // ========================================================
 
     std::ostringstream activity;
+
 
     if (if_id.valid)
         activity << "IF ";
@@ -966,30 +1309,41 @@ void PipelineCPU::logPipelineCycle()
         activity << "EX ";
 
     if (mem_wb.valid)
-        activity << "WB ";
+        activity << "MEM ";
 
 
-    if (mem_wb.valid &&
-        mem_wb.control.reg_write)
+    if (
+        mem_wb.valid &&
+        mem_wb.control.reg_write &&
+        mem_wb.rd != 0
+    )
     {
         activity
             << "| WB: x"
+            << std::dec
             << mem_wb.rd
             << " <- 0x"
             << std::hex
-            << mem_wb.alu_result;
+            << getMEMWBWritebackValue();
     }
 
 
+    // ========================================================
+    // Write trace
+    // ========================================================
+
     pipeline_trace->logCycle(
         cycle,
-        trace_pc,
-        instruction,
 
-        if_id_state,
-        id_ex_state,
-        ex_mem_state,
-        mem_wb_state,
+        trace_pc,
+
+        instruction_raw,
+
+        if_stage,
+        id_stage,
+        ex_stage,
+        mem_stage,
+        wb_stage,
 
         rs1,
         rs1_value,

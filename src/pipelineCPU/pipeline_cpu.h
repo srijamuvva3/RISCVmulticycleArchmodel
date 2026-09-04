@@ -23,8 +23,9 @@ class PipelineCPU
 public:
 
     PipelineCPU(
-        Memory& memory
-    );
+    Memory& memory,
+    PipelineTrace* pipeline_trace
+);
 
 
     void reset();

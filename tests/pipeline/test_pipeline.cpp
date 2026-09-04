@@ -10,11 +10,14 @@ int main()
 {
     Memory memory;
 
-    Logger logger("pipeline_trace.log");
+    PipelineTrace pipeline_trace;
 
-    PipelineCPU cpu(
-        memory
-    );
+pipeline_trace.open("pipeline_trace.log");
+
+PipelineCPU cpu(
+    memory,
+    &pipeline_trace
+);
 
     cpu.reset();
 
@@ -92,7 +95,7 @@ int main()
     std::cout
         << "PIPELINE ARITHMETIC TEST PASSED"
         << std::endl;
-
+    pipeline_trace.close();
 
     return 0;
 }

@@ -11,17 +11,30 @@ PipelineTrace::~PipelineTrace()
     close();
 }
 
+
+// ============================================================
+// OPEN
+// ============================================================
+
 void PipelineTrace::open(const std::string& filename)
 {
     close();
 
-    file.open(filename, std::ios::out | std::ios::trunc);
+    file.open(
+        filename,
+        std::ios::out | std::ios::trunc
+    );
 
     if (file.is_open())
     {
         writeHeader();
     }
 }
+
+
+// ============================================================
+// CLOSE
+// ============================================================
 
 void PipelineTrace::close()
 {
@@ -31,38 +44,68 @@ void PipelineTrace::close()
     }
 }
 
+
+// ============================================================
+// IS OPEN
+// ============================================================
+
 bool PipelineTrace::isOpen() const
 {
     return file.is_open();
 }
 
+
+// ============================================================
+// HEADER
+// ============================================================
+
 void PipelineTrace::writeHeader()
 {
-    file << "========================================================================================================================\n";
-    file << "                                      RISC-V PIPELINE TRACE\n";
-    file << "========================================================================================================================\n";
+    file
+        << "===============================================================================================\n";
 
     file
-        << "Cycle  | PC           | Instruction  "
-        << "| IF/ID       | ID/EX       | EX/MEM      | MEM/WB      "
-        << "| rs1  | rs1_val      "
-        << "| rs2  | rs2_val      "
-        << "| Immediate    "
-        << "| ALU_result   "
-        << "| Activity\n";
+        << "                              RISC-V 5-STAGE PIPELINE TRACE\n";
 
-    file << "------------------------------------------------------------------------------------------------------------------------\n";
+    file
+        << "===============================================================================================\n\n";
+
+    file
+        << std::left
+        << std::setw(7)  << "Cycle"
+        << "| "
+        << std::setw(12) << "PC"
+        << "| "
+        << std::setw(20) << "IF"
+        << "| "
+        << std::setw(20) << "ID"
+        << "| "
+        << std::setw(20) << "EX"
+        << "| "
+        << std::setw(20) << "MEM"
+        << "| "
+        << std::setw(20) << "WB"
+        << "\n";
+
+    file
+        << "-------+--------------+----------------------+----------------------+----------------------+----------------------+----------------------\n";
 }
+
+
+// ============================================================
+// LOG ONE PIPELINE CYCLE
+// ============================================================
 
 void PipelineTrace::logCycle(
     uint64_t cycle,
     uint32_t pc,
     uint32_t instruction,
 
-    const std::string& if_id_state,
-    const std::string& id_ex_state,
-    const std::string& ex_mem_state,
-    const std::string& mem_wb_state,
+    const std::string& if_stage,
+    const std::string& id_stage,
+    const std::string& ex_stage,
+    const std::string& mem_stage,
+    const std::string& wb_stage,
 
     uint32_t rs1,
     uint32_t rs1_value,
@@ -81,46 +124,84 @@ void PipelineTrace::logCycle(
         return;
     }
 
+    // --------------------------------------------------------
+    // Main pipeline table
+    // --------------------------------------------------------
+
     file
         << std::left
-        << std::setw(6) << cycle
-        << " | "
-        << "0x" << std::right << std::setfill('0')
-        << std::setw(8) << std::hex << pc
+        << std::dec
+        << std::setw(7)
+        << cycle
+        << "| ";
+
+    // --------------------------------------------------------
+    // PC
+    // --------------------------------------------------------
+
+    file
+        << "0x"
+        << std::right
+        << std::setfill('0')
+        << std::setw(8)
+        << std::hex
+        << pc
         << std::setfill(' ')
-        << "   | "
-        << "0x" << std::right << std::setfill('0')
-        << std::setw(8) << std::hex << instruction
-        << std::setfill(' ')
-        << " | "
-        << std::left << std::setw(11) << if_id_state
-        << " | "
-        << std::setw(11) << id_ex_state
-        << " | "
-        << std::setw(11) << ex_mem_state
-        << " | "
-        << std::setw(11) << mem_wb_state
-        << " | "
-        << "x" << std::dec << std::setw(3) << rs1
-        << " | "
-        << "0x" << std::right << std::setfill('0')
-        << std::setw(8) << std::hex << rs1_value
-        << std::setfill(' ')
-        << "   | "
-        << "x" << std::dec << std::setw(3) << rs2
-        << " | "
-        << "0x" << std::right << std::setfill('0')
-        << std::setw(8) << std::hex << rs2_value
-        << std::setfill(' ')
-        << "   | "
-        << std::dec << std::setw(11) << immediate
-        << " | "
-        << "0x" << std::right << std::setfill('0')
-        << std::setw(8) << std::hex << alu_result
-        << std::setfill(' ')
-        << " | "
-        << activity
+        << "    | ";
+
+    // --------------------------------------------------------
+    // IF
+    // --------------------------------------------------------
+
+    file
+        << std::left
+        << std::setw(20)
+        << if_stage
+        << "| ";
+
+    // --------------------------------------------------------
+    // ID
+    // --------------------------------------------------------
+
+    file
+        << std::setw(20)
+        << id_stage
+        << "| ";
+
+    // --------------------------------------------------------
+    // EX
+    // --------------------------------------------------------
+
+    file
+        << std::setw(20)
+        << ex_stage
+        << "| ";
+
+    // --------------------------------------------------------
+    // MEM
+    // --------------------------------------------------------
+
+    file
+        << std::setw(20)
+        << mem_stage
+        << "| ";
+
+    // --------------------------------------------------------
+    // WB
+    // --------------------------------------------------------
+
+    file
+        << std::setw(20)
+        << wb_stage
         << "\n";
+
+
+    // --------------------------------------------------------
+    // No additional debug information here.
+    //
+    // This file is intentionally a clean visualization of
+    // instruction movement through the five pipeline stages.
+    // --------------------------------------------------------
 
     file.flush();
 }
